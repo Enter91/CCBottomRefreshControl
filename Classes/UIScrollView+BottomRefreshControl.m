@@ -198,7 +198,7 @@ const CGFloat kMinRefershTime = 0.5;
         self.brc_context.refreshed = NO;
 }
 
-- (void)brc_checkRefreshingTimeAndPerformBlock:(void (^)())block {
+- (void)brc_checkRefreshingTimeAndPerformBlock:(void (^)(void))block {
 
     NSDate *date = self.brc_context.beginRefreshingDate;
     
@@ -218,6 +218,10 @@ const CGFloat kMinRefershTime = 0.5;
 
     UITableView *tableView = self.brc_context.fakeTableView;
     
+    if (tableView == NULL) {
+          return;
+    }
+    
     [self.superview insertSubview:tableView aboveSubview:self];
 
     NSLayoutConstraint *left = [NSLayoutConstraint constraintWithItem:tableView attribute:NSLayoutAttributeLeft relatedBy:NSLayoutRelationEqual toItem:self attribute:NSLayoutAttributeLeft multiplier:1.0 constant:0.0];
@@ -226,9 +230,11 @@ const CGFloat kMinRefershTime = 0.5;
     
     NSLayoutConstraint *bottom = [NSLayoutConstraint constraintWithItem:tableView attribute:NSLayoutAttributeBottom relatedBy:NSLayoutRelationEqual toItem:self attribute:NSLayoutAttributeBottom multiplier:1.0 constant:-self.contentInset.bottom];
     
+    NSLayoutConstraint *width = [NSLayoutConstraint constraintWithItem:tableView attribute:NSLayoutAttributeWidth relatedBy:NSLayoutRelationEqual toItem:nil attribute: NSLayoutAttributeNotAnAttribute multiplier:1.0 constant:self.frame.size.width];
+    
     NSLayoutConstraint *height = [NSLayoutConstraint constraintWithItem:tableView attribute:NSLayoutAttributeHeight relatedBy:NSLayoutRelationEqual toItem:nil attribute: NSLayoutAttributeNotAnAttribute multiplier:1.0 constant:kDefaultTriggerRefreshVerticalOffset];
 
-    [tableView addConstraint:height];
+    [tableView addConstraints:@[width, height]];
     [self.superview addConstraints:@[left, right, bottom]];
 }
 
@@ -253,13 +259,33 @@ const CGFloat kMinRefershTime = 0.5;
     UIEdgeInsets contentInset = self.contentInset;
     self.brc_context.adjustBottomInset = adjust;
     
-    if (animated)
+    if (animated) {
         [UIView beginAnimations:0 context:0];
+        [UIView setAnimationDelegate:self];
+        if (!adjust) {
+            [UIView setAnimationDidStopSelector:@selector(setAdjustBottomAnimation:finished:context:)];
+        }
+    }
 
     self.contentInset = contentInset;
     
-    if (animated)
+    if (animated) {
         [UIView commitAnimations];
+    } else {
+        if (!adjust) {
+            [self setAdjustBottomAnimation:nil
+                                  finished:nil
+                                   context:nil];
+        }
+    }
+}
+
+- (void)setAdjustBottomAnimation:(NSString *)animationID
+                        finished:(NSNumber *)finished
+                         context:(void *)context {
+    CGFloat yOffset = self.contentSize.height - self.frame.size.height - self.contentInset.top - self.contentInset.bottom;
+    CGPoint offset = CGPointMake(self.contentOffset.x, yOffset);
+    [self setContentOffset:offset animated:YES];
 }
 
 - (BOOL)brc_adjustBottomInset {
